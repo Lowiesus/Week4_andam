@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import mongodb from 'mongodb';
 
 dotenv.config();
@@ -25,7 +26,37 @@ async function connectToDatabase() {
     }
 }
 
-app.post("/customers", async (req, res) => {
+//authenticatee token
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+    //authenHeader = "Bearer <tokenvalue>"
+
+    if (!token) {
+        return res.status(401).json({ message: "Access token reqired." });
+    }
+
+    jwt.verify(token, process.env.JWT_TOKEN, (err, user) => {
+        if (err) {
+            return res.status(403).json({ message: "Invalid/expired access token." });
+        }
+        req.user = user;
+        next();
+    });
+};
+
+app.post("/generateToken", async (req, res) => {
+  const { username } = req.body;
+  if (!username) {
+    return res.status(400).json({ message: "Username is required" });
+  }
+
+  const token = jwt.sign({ username }, process.env.JWT_TOKEN, {
+    expiresIn: "1h",
+  });
+  res.status(200).json({ token });
+});
+app.post("/customers", authenticateToken, async (req, res) => {
     try {
         const { username, email, password, first_name, last_name, phone, address } = req.body;
 
